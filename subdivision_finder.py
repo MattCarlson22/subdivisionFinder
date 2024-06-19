@@ -258,13 +258,73 @@ def display_houses(subdivision):
 
             print(f"Listing ID: {house.get('listing_id', 'N/A')}, Status: {status}, Address: {address}, Price: {price}, Sqft: {sqft}, {price_per_sqft_str} {diff_str}")
 
+# Function to find and display best deals based on price per square foot
+def find_best_deals():
+    best_deals = []
+
+    # Prompt user for the minimum price
+    min_price_input = input("Enter the minimum price for the house or press enter for 0: ").strip()
+    min_price = float(min_price_input) if min_price_input else 0
+    if min_price < 0 or min_price > 500000:
+        print("Invalid input. Minimum price must be between 0 and 500000. Setting to 0.")
+        min_price = 0
+
+    for subdivision, houses in subdivision_details.items():
+        if not houses:
+            continue
+
+        groups = {}
+        for house in houses:
+            beds = house.get('beds', 'N/A')
+            baths = house.get('baths', 'N/A')
+            group = (beds, baths)
+            if group not in groups:
+                groups[group] = []
+            groups[group].append(house)
+
+        for group, group_houses in groups.items():
+            avg_price, avg_price_per_sqft = calculate_averages(group_houses)
+
+            if avg_price is None or avg_price_per_sqft is None:
+                continue  # Skip if not enough data for averages
+
+            for house in group_houses:
+                if not house.get('active', False):
+                    continue  # Skip non-active houses
+
+                price = house.get('price', 'N/A').replace('$', '').replace(',', '')
+                sqft = house.get('sqft', 'N/A').replace(',', '')
+                try:
+                    price_value = float(price)
+                    price_per_sqft = price_value / float(sqft) if sqft else 0
+                except ValueError:
+                    price_value = price_per_sqft = 0
+
+                if price_value >= min_price and price_per_sqft < avg_price_per_sqft:
+                    best_deals.append((subdivision, house, price_per_sqft, avg_price_per_sqft))
+
+    # Sort the best deals by price per square foot
+    best_deals = sorted(best_deals, key=lambda x: x[2])[:50]  # Get top 50 best deals
+    best_deals = [deal for deal in best_deals if deal[1].get('price') and float(deal[1].get('price').replace('$', '').replace(',', '')) >= min_price]
+
+    print(f"\n--- Top 50 Best Deals (Below Average Price per Sqft) ---")
+    for subdivision, house, price_per_sqft, avg_price_per_sqft in best_deals:
+        listing_id = house.get('listing_id', 'N/A')
+        address = house.get('address', 'N/A')
+        price = house.get('price', 'N/A')
+        sqft = house.get('sqft', 'N/A')
+        delta = price_per_sqft - avg_price_per_sqft
+        print(f"Listing ID: {listing_id}, Address: {address}, Price: {price}, Sqft: {sqft}, Price per Sqft: ${price_per_sqft:.2f} (Delta: ${delta:.2f})")
+
 # Loop to prompt user for subdivision ID and display details
 while True:
-    choice = input("Enter subdivision ID to view details, 'p' to print subdivisions again, or 'e' to exit: ").strip()
+    choice = input("Enter subdivision ID to view details, 'p' to print subdivisions again, 'r' for best deals, or 'e' to exit: ").strip()
     if choice.lower() == 'e':
         break
     elif choice.lower() == 'p':
         print_subdivisions()
+    elif choice.lower() == 'r':
+        find_best_deals()
     else:
         try:
             sub_id = int(choice)
@@ -273,4 +333,4 @@ while True:
             else:
                 print("Invalid subdivision ID. Please try again.")
         except ValueError:
-            print("Invalid input. Please enter a valid subdivision ID, 'p' to print subdivisions again, or 'e' to exit.")
+            print("Invalid input. Please enter a valid subdivision ID, 'p' to print subdivisions again, 'r' for best deals, or 'e' to exit.")
